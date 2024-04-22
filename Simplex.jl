@@ -98,9 +98,6 @@ function bland!(tableau::AbstractMatrix{T}, col_to_basis::Vector{Tuple{Bool, S}}
 
 	row_to_basis[exit_row] = enter_basis
 
-	# println("Enter, Exit: ", enter_basis, " ", exit_basis)
-	# display(tableau)
-
 	return false
 end
 
@@ -141,10 +138,10 @@ function simplex_initializer(A::AbstractMatrix{T}, b::Vector{T}, c::Vector{T}, c
 	
 	tableau, col_to_basis, row_to_basis = build_tableau(A, b, c, cons, vars)
 
-	simplex_solver!(tableau, col_to_basis, row_to_basis, cons, cons + vars)
+	num_ops = simplex_solver!(tableau, col_to_basis, row_to_basis, cons, cons + vars)
 
-	if tableau[cons + 1, tvars + 1] != 0
-		return (false, tableau, col_to_basis, row_to_basis)
+	if tableau[cons + 1, tvars + 1] > 1e-6
+		return (false, tableau, col_to_basis, row_to_basis, num_ops)
 	end
 
 	lo_ptr = 1
@@ -172,11 +169,11 @@ function simplex_initializer(A::AbstractMatrix{T}, b::Vector{T}, c::Vector{T}, c
 	trimmed_tableau = trim_tableau(tableau, cons, vars)
 	col_to_basis = col_to_basis[1:vars]
 
-	return (true, trimmed_tableau, col_to_basis, row_to_basis)
+	return (true, trimmed_tableau, col_to_basis, row_to_basis, num_ops)
 end
 
 function simplex(A::AbstractMatrix{T}, b::Vector{T}, c::Vector{T}, cons::S, vars::S) where {S<:Integer, T<:AbstractFloat}
-	flag, feasible_tableau, col_to_basis, row_to_basis = simplex_initializer(A, b, c, cons, vars)
+	flag, feasible_tableau, col_to_basis, row_to_basis, ops_init = simplex_initializer(A, b, c, cons, vars)
 
 	if !flag
 		error("Infeasible linear program.")
@@ -185,7 +182,7 @@ function simplex(A::AbstractMatrix{T}, b::Vector{T}, c::Vector{T}, cons::S, vars
 	num_ops = simplex_solver!(feasible_tableau, col_to_basis, row_to_basis, cons, vars)
 
 	optimal_val = -feasible_tableau[cons + 1, vars + 1]
-	var_vals = [0 for i in 1:vars]
+	var_vals = T[0 for i in 1:vars]
 	for i in 1:vars
 		if !col_to_basis[i][1]
 			continue
@@ -194,7 +191,7 @@ function simplex(A::AbstractMatrix{T}, b::Vector{T}, c::Vector{T}, cons::S, vars
 		var_vals[i] = feasible_tableau[col_to_basis[i][2], vars + 1]
 	end
 
-	return (num_ops, optimal_val, var_vals)
+	return (num_ops + ops_init, optimal_val, var_vals)
 end
 
 function tester() 
